@@ -1,0 +1,10 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.12.4"
+manifest_format = "2.0"
+project_hash = "de4ab206dabfdd722d5e216a5b76b6494c078baa"
+
+[[deps.CESTNumSim]]
+path = "."
+uuid = "e70600ac-6660-4470-bd65-b4bfe1a2c5a4"
+version = "1.0.0-DEV"
