@@ -1,6 +1,6 @@
-using CESTNumSim
+using CESTSim
 using Test
 
-@testset "CESTNumSim.jl" begin
-    # Write your tests here.
+@testset "CESTSim.jl" begin
+    
 end
