@@ -1,8 +1,7 @@
 
 include("Aux.jl")
 import Plots
-import CairoMakie
-
+import GLMakie
 
 # TODO: Make sure that the documentation for structs work?
 """
@@ -23,18 +22,18 @@ import CairoMakie
 
 @with_kw mutable struct SequenceBlock
     # Not to be conflicted with KomaMRI's Sequence() mutable struct
-    # 3 types of EVentName accepted: RF, Delay, and Spoiling
+    # 3 types of EVentName accepted: RF, Delay, ADC, and Spoiling
     RF::Union{Array{ComplexF64,1}, ComplexF64, Nothing}=nothing
     T::Union{Array{Float64,1}, Nothing}=[0.0]
-    Δω::Union{Float64, Nothing}=nothing
-    ϕ::Union{Float64, Nothing}=nothing
-    EventType::Symbol=:Ignore
+    Δω::Union{Float64, Nothing}=0.0
+    ϕ::Union{Float64, Nothing}=0.0
+    EventType::Symbol # removed default being :Ignore to reduce human errors
     EventName::String=""
 end
 
 @with_kw mutable struct CESTSequence
     System::Union{NamedTuple, CESTSys}=defaultSystem()
-    Events::Array{SequenceBlock,1}=[SequenceBlock(EventName="Seq Init")]
+    Events::Array{SequenceBlock,1}=[SequenceBlock(EventName="Seq Init", EventType=:Ignore)]
     Author::String=""
     Name::String=""
 end
@@ -62,7 +61,7 @@ end
         `Recovery`: Delay between each Sat-Img block
 
 """
-
+# TODO: Replace this with exported pre-defined `SequenceBlock`s instead?
 @with_kw mutable struct CoreBlocks
     Sat::SequenceBlock # Individual saturation RF event duration
     SatSpoil::SequenceBlock=SequenceBlock(EventType=:Ignore, EventName="") 
@@ -227,6 +226,7 @@ function plot_CESTseq(seq::CESTSequence, fast::Bool, kwargs...)
     for n = eachindex(seq.Events)
         if seq.Events[n].EventType === :RF
             if isa(seq.Events[n].RF, ComplexF64)
+                # rf = convert(Array{ComplexF64,1}, repeat([seq.Events[n].RF], length(seq.Events[n].T)))
                 rf = convert(Array{ComplexF64,1}, repeat([seq.Events[n].RF], length(seq.Events[n].T)))
                 Plots.plot!(f, seq.Events[n].T , abs.(rf), label="",color=:red)
                 Plots.plot!(f2, seq.Events[n].T, angle.(rf),label="", color=:orange, linestyle=:dot, y_foreground_color_border=:orange)
@@ -251,21 +251,25 @@ end
 
 function plot_CESTseq(seq::CESTSequence)
 
-    f = CairoMakie.Figure(size=(750,500))
-    axL = CairoMakie.Axis(f[1,1], yaxisposition=:left, limits=(nothing, nothing, 0.0, nothing), ylabel="|B₁| [μT]", xlabel="Time [s]", leftspinecolor=:red, ylabelcolor=:red, yticklabelcolor=:red, ytickcolor=:red, title=seq.Name)
-    axR = CairoMakie.Axis(f[1,1], yaxisposition=:right, limits=(nothing, nothing, -π, π), ylabel="ϕ [rad]", rightspinecolor=:orange, ylabelcolor=:orange, yticklabelcolor=:orange, ytickcolor=:orange, leftspinecolor=:red)
-    CairoMakie.linkxaxes!(axL, axR)
+    f = GLMakie.Figure(size=(750,500))
+    axL = GLMakie.Axis(f[1,1], yaxisposition=:left, limits=(nothing, nothing, 0.0, nothing), ylabel="|B₁| [μT]", xlabel="Time [s]", leftspinecolor=:red, ylabelcolor=:red, yticklabelcolor=:red, ytickcolor=:red, title=seq.Name)
+    axR = GLMakie.Axis(f[1,1], yaxisposition=:right, limits=(nothing, nothing, -π, π), ylabel="ϕ [rad]", rightspinecolor=:orange, ylabelcolor=:orange, yticklabelcolor=:orange, ytickcolor=:orange, leftspinecolor=:red)
+    GLMakie.linkxaxes!(axL, axR)
 
     for n = eachindex(seq.Events)
         if seq.Events[n].EventType === :RF
-            CairoMakie.lines!(axL, seq.Events[n].T, abs.(seq.Events[n].RF), label="",color=:red)
-            CairoMakie.lines!(axR, seq.Events[n].T, angle.(seq.Events[n].RF),label="", color=:orange, linestyle=:dash)
+            mag =  seq.Events[n].RF
+            if isa(mag, ComplexF64)
+                mag = mag .+ zeros(length(seq.Events[n].T))
+            end
+            GLMakie.lines!(axL, seq.Events[n].T, abs.(mag), label="",color=:red)
+            GLMakie.lines!(axR, seq.Events[n].T, angle.(mag),label="", color=:orange, linestyle=:dash)
         elseif seq.Events[n].EventType === :Delay
-            CairoMakie.lines!(axL, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", color=:red)
+            GLMakie.lines!(axL, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", color=:red)
         elseif seq.Events[n].EventType === :Spoiling
-            CairoMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:dot, color=:blue)
+            GLMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:dot, color=:blue)
         elseif seq.Events[n].EventType === :ADC
-            CairoMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:solid, color=:green)
+            GLMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:solid, color=:green)
         end
     end
 
@@ -284,6 +288,27 @@ end
     ϕ::Float64
 end
 
+## Some default blocks
+blockADC = SequenceBlock(T=0.0:1e-6:2e-6, EventType=:ADC, EventName="Default readout, 2 μs")
+blockdummyRF = SequenceBlock(RF=1 + 0.0im, T=0.0:1e-6:1e-3, EventType=:RF, EventName="Dummy RF, 1 ms")
+dummySeq = CESTSequence()
+addBlock!(dummySeq, blockdummyRF)
+addBlock!(dummySeq, blockADC)
+
+##
+
+# @with_kw struct CESTParamsPulsed # Usually the case for modulated amplitude and phase
+#     N::Int64
+#     R::Array{Float64,2}
+#     C::Array{Float64,1}
+#     Ω::Array{Float64,1}
+#     Kx::Array{Float64,2}
+#     Ky::Array{Float64,2}
+#     Kz::Array{Float64,2}
+#     B1::ScaledInterpolation{Float64, 1, Interpolations.BSplineInterpolation{Float64, 1, Vector{Float64}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{Base.OneTo{Int64}}}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{LinRange{Float64, Int64}}} 
+#     ϕ::ScaledInterpolation{Float64, 1, Interpolations.BSplineInterpolation{Float64, 1, Vector{Float64}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{Base.OneTo{Int64}}}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{LinRange{Float64, Int64}}}
+# end
+
 @with_kw struct CESTParamsPulsed # Usually the case for modulated amplitude and phase
     N::Int64
     R::Array{Float64,2}
@@ -292,8 +317,8 @@ end
     Kx::Array{Float64,2}
     Ky::Array{Float64,2}
     Kz::Array{Float64,2}
-    B1::ScaledInterpolation{Float64, 1, Interpolations.BSplineInterpolation{Float64, 1, Vector{Float64}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{Base.OneTo{Int64}}}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{LinRange{Float64, Int64}}} 
-    ϕ::ScaledInterpolation{Float64, 1, Interpolations.BSplineInterpolation{Float64, 1, Vector{Float64}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{Base.OneTo{Int64}}}, BSpline{Constant{Previous, Throw{OnGrid}}}, Tuple{LinRange{Float64, Int64}}}
+    B1::FastInterpolations.AbstractInterpolant{Float64, Float64}
+    ϕ::FastInterpolations.AbstractInterpolant{Float64, Float64}
 end
 
 """
@@ -303,11 +328,28 @@ end
     
         Returns a function of B1(t) and ϕ(t), where T = block.T
 """
-function interp_b1(block::SequenceBlock)
-    fb1 = scale(interpolate(abs.(block.RF), BSpline(Constant(Previous))), LinRange(block.T[1], block.T[end], length(block.T)))
-    fphi = scale(interpolate(angle.(block.RF) .+ event.ϕ, BSpline(Constant(Previous))), LinRange(block.T[1], block.T[end], length(block.T)))    
-    return fb1, fphi
-end
+# function interp_b1(block::SequenceBlock, ver::String) # Deprecated
+#     fB₁ = scale(interpolate(abs.(block.RF), BSpline(Constant(Previous))), LinRange(block.T[1], block.T[end], length(block.T)))
+#     fϕ = scale(interpolate(angle.(block.RF) .+ block.ϕ, BSpline(Constant(Previous))), LinRange(block.T[1], block.T[end], length(block.T)))    
+#     return fB₁, fϕ
+# end
+
+function interp_b1(event::SequenceBlock, order::Symbol=:Linear)
+    if order == :Linear
+        fB₁ = linear_interp(event.T, abs.(event.RF)             ; extrap=ClampExtrap())
+        fϕ  = linear_interp(event.T, angle.(event.RF) .+ event.ϕ; extrap=ClampExtrap())
+    elseif order == :Constant
+        fB₁ = constant_interp(event.T, abs.(event.RF)             ; side=LeftSide(), extrap=ClampExtrap())
+        fϕ  = constant_interp(event.T, angle.(event.RF) .+ event.ϕ; side=LeftSide(), extrap=ClampExtrap())
+    elseif order == :Quadratic 
+        fB₁ = quadratic_interp(event.T, abs.(event.RF)             ; extrap=ClampExtrap())
+        fϕ  = quadratic_interp(event.T, angle.(event.RF) .+ event.ϕ; extrap=ClampExtrap())
+    elseif order == :Cubic 
+        fB₁ = cubic_interp(event.T, abs.(event.RF)             ; extrap=ClampExtrap())
+        fϕ  = cubic_interp(event.T, angle.(event.RF) .+ event.ϕ; extrap=ClampExtrap())
+    end
+    return fB₁, fϕ
+end 
 
 """
     Method 1
@@ -324,6 +366,7 @@ function create_params(model::CESTModel, sys::CESTSys, Δω::Float64)
     k = model.Cⁿ # exchange rate vector [Hz]
 
     w = model.wⁿppm .* (sys.γ * sys.B₀)
+    δω = model.δω
     Mz0 = 1.0
 
     (Kx, Ky, Kz) = (zeros(N, N), zeros(N, N), zeros(N, N))
@@ -331,36 +374,48 @@ function create_params(model::CESTModel, sys::CESTSys, Δω::Float64)
     C = zeros(3N)
     Ω = zeros(N)
 
-    for n in 1:N
-        Ω[n] = 2π * (w[n] + w[1] - Δω)
+    for n = 1:N
+        # Ω[n] = 2π * (w[n] + w[1] - Δω) # moved away from this
+        Ω[n] = 2π * (w[n] - Δω + δω) # Made this consistent across all species;
+        # Previously, we only needed to change the water offset to simulate B0 inhomo, and all other species offsets are adjusted accordingly. 
+        # This is practically very convenient but not very proper.
         idx = 3 * (n - 1) 
         R[idx+1, idx+1] = -model.r2ⁿ[n]
         R[idx+2, idx+2] = -model.r2ⁿ[n]
         R[idx+3, idx+3] = -model.r1ⁿ[n]
         C[idx+3] = Mz0 * model.r1ⁿ[n] * f[n]
     end
+    # Ω[1] = 2π * (w[1] - Δω) # moved away from this
 
     # TODO: deal with the below
     # A bit silly as this is inherited from the original script and 
     # isn't in the same order as M0 and K but i don't want to change too much for now
     # I should prob change it if considering more than 100 pools - but thats unlikely (FOR NOW!)
 
-    Kx[1, :] .= [-sum(k .* f[2:end]); k]
-    Ky[1, :] .= [-sum(k .* f[2:end]); k]
-    Kz[1, :] .= [-sum(k .* f[2:end]); k]
 
     # other pools
-    for n in 2:N
-        Kx[n, 1] = k[n-1] * f[n]
-        Ky[n, 1] = k[n-1] * f[n]
-        Kz[n, 1] = k[n-1] * f[n]
+    if N > 1
+        Kx[1, :] .= [-sum(k[2:end] .* f[2:end]); k[2:end]]
+        Ky[1, :] .= [-sum(k[2:end] .* f[2:end]); k[2:end]]
+        Kz[1, :] .= [-sum(k[2:end] .* f[2:end]); k[2:end]]
+        for n = 2:N
+            Kx[n, 1] = k[n] * f[n]
+            Ky[n, 1] = k[n] * f[n]
+            Kz[n, 1] = k[n] * f[n]
 
-        Kx[n, n] = -k[n-1]
-        Ky[n, n] = -k[n-1]
-        Kz[n, n] = -k[n-1]
-        
+            Kx[n, n] = -k[n]
+            Ky[n, n] = -k[n]
+            Kz[n, n] = -k[n]
+            # Kx[n, 1] = k[n-1] * f[n]
+            # Ky[n, 1] = k[n-1] * f[n]
+            # Kz[n, 1] = k[n-1] * f[n]
+# 
+            # Kx[n, n] = -k[n-1]
+            # Ky[n, n] = -k[n-1]
+            # Kz[n, n] = -k[n-1]
+            
+        end
     end
-
     p = (; N=N, R=R, C=C, Ω=Ω, Kx=Kx, Ky=Ky, Kz=Kz)
     return p
 end
@@ -384,11 +439,11 @@ end
         - ::CESTParamsCW
 
 """
-function create_params(p::NamedTuple, event::SequenceBlock, type::Symbol)
+function create_params(p::NamedTuple, event::SequenceBlock, type::Symbol; order::Symbol=:Linear)
     if type === :Relax
         p = CESTParamsFP(N=p.N, R=p.R, C=p.C, Ω=p.Ω, Kx=p.Kx, Ky=p.Ky, Kz=p.Kz)
     elseif type === :Pulsed
-        fB₁, fϕ = interp_b1(event)
+        fB₁, fϕ = interp_b1(event, order)
         p = CESTParamsPulsed(N=p.N, R=p.R, C=p.C, Ω=p.Ω, Kx=p.Kx, Ky=p.Ky, Kz=p.Kz, B1=fB₁, ϕ=fϕ)
     elseif type === :CW
         p = CESTParamsCW(N=p.N, R=p.R, C=p.C, Ω=p.Ω, Kx=p.Kx, Ky=p.Ky, Kz=p.Kz, B1=abs(event.RF), ϕ=angle(event.RF) + event.ϕ)
@@ -397,362 +452,198 @@ function create_params(p::NamedTuple, event::SequenceBlock, type::Symbol)
 end
 
 
-
-## WIP
-module simple
-    function makeBlockPulse(A::Float64, 
-                            T::Array{Float64, 2},
-                            Δt::Float64=1e-6)
-        N = floor((T[2] - T[1]) / Δt) |> Int
-        T[2] = (T[1]:Δt:T[2])[end] # To deal with suboptimal rounding
-        A = convert(ComplexF64, A)
-        pulse = (; A = repeat([A], N), T = LinRange(T[1], T[2], N))
-        return pulse
+function plot_CESTtraj(RF::SequenceBlock, ADC::SequenceBlock, Δω::Float64, sys::CESTSys, model::CESTModel; species::Int=1)
+    # If no adiabatic
+    GLMakie.set_theme!()
+    f = GLMakie.Figure(size=(1500,1000));
+    ax = [GLMakie.Axis(f[1,n]) for n = 1:3]
+    clrs = [:firebrick, :blue]
+    ws = [-Δω Δω] .* sys.B₀MHz
+    rs = [0.0 0.0]
+    
+    if isa(RF.RF, ComplexF64)
+        # pRF = repeat([RF.RF], length(RF.T))
+        pRF = RF.RF .+ zeros(ComplexF64, length(RF.T))
+    else
+        pRF = RF.RF
     end
+    GLMakie.lines!(ax[1], RF.T, pRF .|> abs)
+    GLMakie.lines!(ax[2], RF.T, pRF .|> angle)
+    ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
+    ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
+    RF2 = deepcopy(RF)
+    axs = [GLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = GLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=(-1,1,-1,1,-1,1), azimuth=1.6π)
+    for nw = eachindex(ws)
+        Dw     = ws[nw]
+        RF2.Δω = Dw
+        seq    = CESTSequence(System=sys)
+        addBlock!(seq, RF2)
+        addBlock!(seq, ADC)
+        simp = CESTSimParams(Δω = [Δω], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
+        r = simulate_CEST(seq, simp, true, true; species=species)
+        Mx = r.Mx; My = r.My; Mz = r.Mz
+        GLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+        GLMakie.lines!(ax[3], r.t, My, label="My")
+        GLMakie.lines!(ax[3], r.t, Mz, label="Mz")
+        ax[3].limits=(nothing,nothing, 0.0,1)
 
 
-    # Pulse with pre-defined A and times
-    function makeArbitraryPulse(A, T)
-        if size(A) != size(T)
-            throw(ArgumentError("Amplitude and Time arrays have different sizes. Please check"))
-        end
+        GLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); GLMakie.arc!(axs[1], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+        GLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); GLMakie.arc!(axs[2], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+        GLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); GLMakie.arc!(axs[3], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
 
-        if istype(A[1]) != Union{ComplexF64, ComplexF32, ComplexF64}
-            throw(ArgumentError("Amplitude must be a Complex Array"))
-        end
+        GLMakie.arc!(ax3, 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, zeros(63), sin.(-π:.1:π), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, sin.(-π:.1:π), zeros(63), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, [0 0], [0 0], [-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, [0 0], [-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, [-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+        GLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+        GLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
 
-        Δt = T[2] - T[1]
-        pulse = (; A = A, T = T, Δt = Δt)
-        return pulse
+        println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
+        # GLMakie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
+        rs[nw] = Mz[end]
     end
+    GLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
+    # GLMakie.Label(f[4,:]; text=, fontsize=15)
+    println(((rs[1] - rs[2])/rs[1])*100)
+    return f
 end
 
-module pulseq
-    # Ported from pyPulseq
-    using DSP
-    using LinearAlgebra
-    using Trapz
-    function make_sinc_pulse(
-        flip_angle::Float64;
-        apodization::Float64=0.0,
-        delay::Float64=0.0,
-        duration::Float64=4e-3,
-        dwell::Float64=0.0,
-        system,
-        center_pos::Float64=0.5,
-        freq_offset::Float64=0.0,
-        phase_offset::Float64=0.0,
-        time_bw_product::Float64=4.0,
-        use::String=""
-    )
-        """
-        Creates a radio-frequency sinc pulse event and optionally accompanying slice select and slice select rephasing
-        trapezoidal gradient events.
+function plot_CESTtraj(seq::CESTSequence, Δω::Float64, sys::CESTSys, model::CESTModel; both::Bool=true, species::Int=1)
 
-        Parameters
-        ----------
-        flip_angle : Float64
-            Flip angle in radians.
-        apodization : Float64, default=0.0
-            Apodization.
-        center_pos : Float64, default=0.5
-            Position of peak.5 (midway).
-        delay : Float64, default=0.0
-            Delay in seconds (s).
-        duration : Float64, default=4e-3
-            Duration in seconds (s).
-        dwell : Float64, default=0.0
-        freq_offset : Float64, default=0.0
-            Frequency offset in Hertz (Hz).
-        max_grad : Float64, default=0.0
-            Maximum gradient strength of accompanying slice select trapezoidal event.
-        max_slew : Float64, default=0.0
-            Maximum slew rate of accompanying slice select trapezoidal event.
-        phase_offset : Float64, default=0.0
-            Phase offset in Hertz (Hz).
-        return_gz : Bool, default=false
-            Boolean flag to indicate if slice-selective gradient has to be returned.
-        slice_thickness : Float64, default=0.0
-            Slice thickness of accompanying slice select trapezoidal event. The slice thickness determines the area of the
-            slice select event.
-        system : Opts, default=Opts()
-            System limits. Default is a system limits object initialized to default values.
-        time_bw_product : Float64, default=4.0
-            Time-bandwidth product.
-        use : String, default=""
-            Use of radio-frequency sinc pulse. Must be one of "excitation", "refocusing" or "inversion".
-
-        Returns
-        -------
-        rf : NamedTuple
-            Radio-frequency sinc pulse event.
-        gz : NamedTuple, optional
-            Accompanying slice select trapezoidal gradient event. Returned only if `slice_thickness` is provided.
-        gzr : NamedTuple, optional
-            Accompanying slice select rephasing trapezoidal gradient event. Returned only if `slice_thickness` is provided.
-
-        Raises
-        ------
-        ArgumentError
-            If invalid `use` parameter was passed. Must be one of "excitation", "refocusing" or "inversion".
-            If `return_gz=true` and `slice_thickness` was not provided.
-        """
-
-        if isempty(system)
-            system = defaultsystem()
-        end
-
-        valid_pulse_uses = ["excitation", "refocusing", "inversion", "saturation"]
-        if !isempty(use) && !(use in valid_pulse_uses)
-            throw(ArgumentError("Invalid use parameter. Must be one of $valid_pulse_uses. Passed: $use"))
-        end
-
-        if dwell == 0.0
-            dwell = system.rf_raster_time
-        end
-
-        if duration <= 0.0
-            throw(ArgumentError("RF pulse duration must be positive."))
-        end
-
-        bandwidth = time_bw_product / duration
-        alpha = apodization
-        n_samples = round(Int, duration / dwell)
-        t = (collect(1:n_samples) .- 0.5) .* dwell
-        tt = t .- (duration * center_pos)
-        window = 1 .- alpha .+ alpha .* cos.(2 * π * tt / duration)
-        signal = window .* sinc.(bandwidth .* tt)
-        flip = sum(signal) * dwell * 2 * π
-        signal = signal .* (flip_angle / flip)
-
-        rf = (
-            type="rf",
-            signal=signal,
-            t=t,
-            shape_dur=n_samples * dwell,
-            freq_offset=freq_offset,
-            phase_offset=phase_offset,
-            dead_time=system.rf_dead_time,
-            ringdown_time=system.rf_ringdown_time,
-            delay=delay,
-            use=use,
-            name="Sinc"
-        )
-
-        if rf.dead_time > rf.delay
-            @warn "Specified RF delay $(rf.delay*1e6) µs is less than the dead time $(rf.dead_time*1e6) µs. Delay was increased to the dead time."
-            rf = merge(rf, (delay=rf.dead_time,))
-        end
-
-        negative_zero_indices = findall(x -> x == -0.0, rf.signal)
-        rf.signal[negative_zero_indices] .= 0.0
-
-        return rf
+    scale = model.fⁿ[species]
+    # If no adiabatic
+    GLMakie.set_theme!()
+    f = GLMakie.Figure(size=(1500,1000));
+    ax = [GLMakie.Axis(f[1,n]) for n = 1:3]
+    clrs = [:firebrick, :blue]
+    if both
+        ws = [-Δω Δω] .* sys.B₀MHz
+        rs = [0.0 0.0]
+    else
+        ws = [Δω] .* sys.B₀MHz
+        rs = [0.0]
     end
-
-    function make_gauss_pulse(
-        flip_angle::Float64;
-        apodization::Float64=0.0,
-        delay::Float64=0.0,
-        duration::Float64=0.0,
-        dwell::Float64=0.0,
-        system,
-        center_pos::Float64=0.5,
-        freq_offset::Float64=0.0,
-        phase_offset::Float64=0.0,
-        time_bw_product::Float64=3.0,
-        use::String=""
-    )
-
-        valid_pulse_uses = ["excitation", "refocusing", "inversion", "saturation"]
-        if !isempty(use) && !(use in valid_pulse_uses)
-            throw(ArgumentError("Invalid use parameter. Must be one of $valid_pulse_uses. Passed: $use"))
-        end
-
-        if dwell == 0.0
-            dwell = system.rf_raster_time
-        end
-
-        if duration <= 0.0
-            throw(ArgumentError("RF pulse duration must be positive."))
-        end
-
-        bandwidth = time_bw_product / duration
-        alpha = apodization
-        n_samples = round(Int, duration / dwell)
-        t = (collect(1:n_samples) .- 0.5) .* dwell
-        tt = t .- (duration * center_pos)
-        window = 1 .- alpha .+ alpha .* cos.(2 * π * tt / duration)
-        # signal = window .* gauss.(bandwidth .* tt)
-        signal = window .* exp.(-π.*(bandwidth .* tt).^2);
-        flip = sum(signal) * dwell * 2 * π
-        signal = signal .* (flip_angle / flip)
-
-        rf = (
-            type="rf",
-            signal=signal,
-            t=t,
-            shape_dur=n_samples * dwell,
-            freq_offset=freq_offset,
-            phase_offset=phase_offset,
-            dead_time=system.rf_dead_time,
-            ringdown_time=system.rf_ringdown_time,
-            delay=delay,
-            use=use,
-            name="Gauss"
-        )
-
-        if rf.dead_time > rf.delay
-            @warn "Specified RF delay $(rf.delay*1e6) µs is less than the dead time $(rf.dead_time*1e6) µs. Delay was increased to the dead time."
-            rf = merge(rf, (delay=rf.dead_time,))
-        end
-
-        negative_zero_indices = findall(x -> x == -0.0, rf.signal)
-        rf.signal[negative_zero_indices] .= 0.0
-
-        return rf
-
-        function gauss(x)
-            #gauss Calculate the Gaussian function:
-            #   gauss(x) = exp(-pi*x^2)
-            
-            # This is a useful helper function for those without the signal 
-            # processing toolbox 
-            
-            y = exp(-pi*x.^2);
-            return y
+    
+    for n = eachindex(seq.Events)
+        if seq.Events[n].EventType == :RF
+            if isa(seq.Events[n].RF, ComplexF64)
+                RF = seq.Events[n].RF .+ zeros(ComplexF64, length(seq.Events[n].T))
+            else
+                RF = seq.Events[n].RF
+            end
+            GLMakie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
+            GLMakie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
         end
     end
-
-
-    function make_gauss_pulse_hanning(
-        flip_angle::Float64;
-        apodization::Float64=0.0,
-        delay::Float64=0.0,
-        duration::Float64=0.0,
-        dwell::Float64=0.0,
-        system,
-        center_pos::Float64=0.5,
-        freq_offset::Float64=0.0,
-        phase_offset::Float64=0.0,
-        time_bw_product::Float64=3.0,
-        use::String=""
-    )
-
-        valid_pulse_uses = ["excitation", "refocusing", "inversion", "saturation"]
-        if !isempty(use) && !(use in valid_pulse_uses)
-            throw(ArgumentError("Invalid use parameter. Must be one of $valid_pulse_uses. Passed: $use"))
+    ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
+    ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
+    # RF2 = deepcopy(RF)
+    seq2 = deepcopy(seq)
+    axs = [GLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = GLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
+    for nw = eachindex(ws)
+        Dw = ws[nw]
+        for n = eachindex(seq.Events)
+            seq2.Events[n].Δω = Dw
         end
-
-        if dwell == 0.0
-            dwell = system.rf_raster_time
-        end
-
-        if duration <= 0.0
-            throw(ArgumentError("RF pulse duration must be positive."))
-        end
-
-        bandwidth = time_bw_product / duration
-        alpha = apodization
-        n_samples = round(Int, duration / dwell)
-        t = (collect(1:n_samples) .- 0.5) .* dwell
-        tt = t .- (duration * center_pos)
-        window = 1 .- alpha .+ alpha .* cos.(2 * π * tt / duration)
-        
-        signal = window .* exp.(-pi.*(bandwidth .* tt).^2);
-        # signal = window .* gauss.(bandwidth .* tt)
-        flip = sum(signal) * dwell * 2 * π
-        signal = signal .* (flip_angle / flip)
-        
-        # z = diff(t;dims=1)' * (signal[1:end-1,:] + signal[2:end,:])/2;
-
-        hanning_shape = hanning(length(signal));
-        signal = hanning_shape ./ trapz(t, hanning_shape) * (flip_angle ./ (2π));
+        simp = CESTSimParams(Δω = [Δω], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
+        r = simulate_CEST(seq2, simp, true, true; species=species)
+        Mx = r.Mx; My = r.My; Mz = r.Mz
+        GLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+        GLMakie.lines!(ax[3], r.t, My, label="My")
+        GLMakie.lines!(ax[3], r.t, Mz, label="Mz")
+        ax[3].limits=(nothing,nothing, 0.0,scale*1)
 
 
-        rf = (
-            type="rf",
-            signal=signal,
-            t=t,
-            shape_dur=n_samples * dwell,
-            freq_offset=freq_offset,
-            phase_offset=phase_offset,
-            dead_time=system.rf_dead_time,
-            ringdown_time=system.rf_ringdown_time,
-            delay=delay,
-            use=use,
-            name="Hann. Gauss"
-        )
+        GLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); GLMakie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+        GLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); GLMakie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+        GLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); GLMakie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
 
-        if rf.dead_time > rf.delay
-            @warn "Specified RF delay $(rf.delay*1e6) µs is less than the dead time $(rf.dead_time*1e6) µs. Delay was increased to the dead time."
-            rf = merge(rf, (delay=rf.dead_time,))
-        end
 
-        negative_zero_indices = findall(x -> x == -0.0, rf.signal)
-        rf.signal[negative_zero_indices] .= 0.0
+        GLMakie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        GLMakie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+        GLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+        GLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+        GLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
 
-        return rf
+        println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
+        # GLMakie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
+        rs[nw] = Mz[end]
+        println(string("θ = ", atan(Mx[end]/Mz[end])))
     end
-
-    function make_rect_pulse(
-        flip_angle::Float64;
-        delay::Float64=0.0,
-        duration::Float64=0.0,
-        dwell::Float64=0.0,
-        system,
-        center_pos::Float64=0.5,
-        freq_offset::Float64=0.0,
-        phase_offset::Float64=0.0,
-        time_bw_product::Float64=3.0,
-        use::String="",
-    )
-
-        valid_pulse_uses = ["excitation", "refocusing", "inversion", "saturation"]
-        if !isempty(use) && !(use in valid_pulse_uses)
-            throw(ArgumentError("Invalid use parameter. Must be one of $valid_pulse_uses. Passed: $use"))
-        end
-
-        if dwell == 0.0
-            dwell = system.rf_raster_time
-        end
-
-        if duration <= 0.0
-            throw(ArgumentError("RF pulse duration must be positive."))
-        end
-
-        bandwidth = 1/(4*duration);
-        n_samples = round(Int, duration / dwell)
-        t = [0; n_samples] .* dwell
-        
-        signal = flip_angle/(2π)/duration*ones(size(t));
-
-
-        rf = (
-            type="rf",
-            signal=signal,
-            t=t,
-            shape_dur=n_samples * dwell,
-            freq_offset=freq_offset,
-            phase_offset=phase_offset,
-            dead_time=system.rf_dead_time,
-            ringdown_time=system.rf_ringdown_time,
-            delay=delay,
-            use=use,
-            name="Rect"
-        )
-
-        if rf.dead_time > rf.delay
-            @warn "Specified RF delay $(rf.delay*1e6) µs is less than the dead time $(rf.dead_time*1e6) µs. Delay was increased to the dead time."
-            rf = merge(rf, (delay=rf.dead_time,))
-        end
-
-        negative_zero_indices = findall(x -> x == -0.0, rf.signal)
-        rf.signal[negative_zero_indices] .= 0.0
-
-        return rf
-
+    if both
+        GLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
+        println(((rs[1] - rs[2])/rs[1])*100)
+    else
+        GLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm", fontsize=20)
     end
+        # GLMakie.Label(f[4,:]; text=, fontsize=15)
+    return f
 end
 
+function plot_CESTtraj(seq::CESTSequence, sys::CESTSys, model::CESTModel; species::Int=1)
+
+    scale = model.fⁿ[species]
+    # If no adiabatic
+    GLMakie.set_theme!()
+    f = GLMakie.Figure(size=(1500,1000));
+    ax = [GLMakie.Axis(f[1,n]) for n = 1:3]
+    clrs = [:firebrick, :blue]
+    
+    for n = eachindex(seq.Events)
+        if seq.Events[n].EventType == :RF
+            if isa(seq.Events[n].RF, ComplexF64)
+                RF = seq.Events[n].RF .+ zeros(ComplexF64, length(seq.Events[n].T))
+            else
+                RF = seq.Events[n].RF
+            end
+            GLMakie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
+            GLMakie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
+        end
+    end
+    ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
+    ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
+    # RF2 = deepcopy(RF)
+    seq2 = deepcopy(seq)
+    axs = [GLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = GLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
+    nw = 1
+
+    simp = CESTSimParams(Δω = [0.0], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
+    r = simulate_CEST(seq2, simp, true, true; species=species)
+    Mx = r.Mx; My = r.My; Mz = r.Mz
+    GLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+    GLMakie.lines!(ax[3], r.t, My, label="My")
+    GLMakie.lines!(ax[3], r.t, Mz, label="Mz")
+    ax[3].limits=(nothing,nothing, 0.0,scale*1)
+
+
+    GLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); GLMakie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+    GLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); GLMakie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+    GLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); GLMakie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
+
+
+    GLMakie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
+    GLMakie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+    GLMakie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+    GLMakie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+    GLMakie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+    GLMakie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+    GLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+    GLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+    GLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
+
+    println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
+
+    return f
+end
 
