@@ -9,7 +9,7 @@ sys = CESTSim.defaultSystem()
 model = create_model("2PoolsGlu7T")
 
 # * Alternatively, create a model struct with another function method: create_model(T1::Vector{…}, T2::Vector{…}, f::Vector{…}, k::Vector{…}, dw::Vector{…}, B0::Float64, maxRFsamples::Int64)
-# model = create_model(["water", "glu"], [1.8; 1.0], [55e-3; 6.9e-3], [111; 36e-3]./111, [7450.0], [0.0; 3.2], 6.98)
+# model = create_model(["water", "glu"], [1.8; 1.0], [55e-3; 6.9e-3], [111; 36e-3]./111, [7450.0], [0.0; 3.2])
 
 # CW parameters -- You can set this up however you'd like, this is just an example :)
 p = (; 
@@ -44,13 +44,14 @@ end
 
 # f = plot_CESTseq(seq, true)
 
+
 ## 3. Simulate
-simParams = CESTSimParams(Δω = w, model = model, solver="Rodas5P()")
+simParams = CESTSimParams(Δω = w, model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())",reltol=1e-4,abstol=1e-4)
 
 # If resetting M0 after each offset
 r = simulate_CEST(seq, simParams,true)
 # otherwise
 # r = simulate_CEST(seq, simParams,false) 
 
-fZ = CESTSim.plot_CESTresult(r, simParams)
+fZ = CESTSim.plot_CESTresult(r.Z, simParams)
 fZ[1]

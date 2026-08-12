@@ -1,3 +1,6 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
+examples/12August.code-workspace
+.vscode/settings.json
+src/PlotSupport.jl
