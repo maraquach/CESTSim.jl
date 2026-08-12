@@ -5,26 +5,25 @@
 using CESTSim
 import DifferentialEquations
 sys = CESTSim.defaultSystem()
-model = create_model("2PoolsGlu7T")
+model = create_model("2PoolsAmide7T")
 
 # * Alternatively, create a model struct with another function method: create_model(T1::Vector{…}, T2::Vector{…}, f::Vector{…}, k::Vector{…}, dw::Vector{…}, B0::Float64, maxRFsamples::Int64)
-# model = create_model(["water", "glu"], [1.8; 1.0], [55e-3; 6.9e-3], [111; 36e-3]./111, [7450.0], [0.0; 3.2], 6.98)
+# model = create_model(["water", "glu"], [1.8; 1.0], [55e-3; 6.9e-3], [111; 36e-3]./111, [7450.0], [0.0; 3.2])
 
 # CW parameters -- You can set this up however you'd like, this is just an example :)
 p = (; 
-    S = (; Δt = 1e-5, tp = 100e-3, td = 5e-3, tspoil = 0.0e-3, np = 10), # Pulsed block Saturation 
+    S = (; Δt = 1e-5, tp = 50e-3, td = 5e-3, tspoil = 0.0e-3, np = 50), # Pulsed block Saturation 
     I = (; Δt = 1e-5, tp = 0e-3, te = 0.0e-3, tr = 0.0e-3, tspoil = 0, np = 0), # Imaging 
     D = (; Δt = 1e-5, spoil = 0.0, td = 0.0e-3, tro = 22e-3, trec = 5) # Other delays
 ) # all units in seconds
 
-rf = convert(Array{ComplexF64,1}, repeat([3.0], floor(p.S.tp / p.S.Δt) |> Int))
-
+rf = pulses.gaussian(1.0, 0.0, p.S.tp, p.S.Δt)
 
 blocks = CoreBlocks( # This is good if we have the same types of RF for sat and imaging -- no fancy things
-    Sat         = SequenceBlock(RF=rf,      T=p.S.Δt:p.S.Δt:p.S.tp    , Δω=nothing, ϕ=0.0    , EventType=:RF      , EventName="Pulse duration"), 
+    Sat         = SequenceBlock(RF=rf[1]  , T=rf[2]                   , Δω=nothing, ϕ=0.0    , EventType=:RF      , EventName="Pulse duration")   , 
     SatTd       = SequenceBlock(RF=nothing, T=p.S.Δt:p.S.Δt:p.S.td    , Δω=nothing, ϕ=nothing, EventType=:Delay   , EventName="Inter-pulse delay"),
-    SatImgSpoil = SequenceBlock(RF=nothing, T=p.D.Δt:p.D.Δt:p.D.spoil , Δω=nothing, ϕ=nothing, EventType=:Spoiling, EventName="Pre-img spoiling"), 
-    ImgTRO      = SequenceBlock(RF=nothing, T=p.D.Δt:p.D.Δt:p.D.tro   , Δω=nothing, ϕ=nothing, EventType=:ADC     , EventName="Readout"),
+    SatImgSpoil = SequenceBlock(RF=nothing, T=p.D.Δt:p.D.Δt:p.D.spoil , Δω=nothing, ϕ=nothing, EventType=:Spoiling, EventName="Pre-img spoiling") , 
+    ImgTRO      = SequenceBlock(RF=nothing, T=p.D.Δt:p.D.Δt:p.D.tro   , Δω=nothing, ϕ=nothing, EventType=:ADC     , EventName="Readout")          ,
     Recovery    = SequenceBlock(RF=nothing, T=p.D.Δt:p.D.Δt:p.D.trec  , Δω=nothing, ϕ=nothing, EventType=:Delay   , EventName="Recovery time")
 )
 
@@ -49,12 +48,12 @@ end
 # f = plot_CESTseq(seq, true)
 
 ## 3. Simulate
-simParams = CESTSimParams(Δω = w, model = model, solver="Rodas5P()")
+simParams = CESTSimParams(Δω = w, sys=sys, model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())",reltol=1e-5,abstol=1e-5)
 
 # If resetting M0 after each offset
-r = simulate_CEST(seq, simParams,true)
+@time r = simulate_CEST(seq, simParams,true)
 # otherwise
 # r = simulate_CEST(seq, simParams,false) 
 
-fZ = CESTSim.plot_CESTresult(r, simParams)
+fZ = CESTSim.plot_CESTresult(r.Z, simParams)
 fZ[1]
