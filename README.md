@@ -7,7 +7,10 @@ The package is in development and therefore not (yet) registered.
 To install and use, type in your Julia REPL
 
 ```
-]add git@github.com:maraquach/CESTSim.jl.git
+using Pkg
+Pkg.add(url="https://github.com/maraquach/CESTSim.jl.git")
+```
+<!-- ]add https://github.com/maraquach/CESTSim.jl.git -->
 
 using CESTSim
 ```
@@ -18,12 +21,21 @@ Two simple examples are provided in the examples directory.
 * Import YAML model files or create your own struct (::CESTModel) - `load_model()` or `create_model()` 
 * Create and modify Sequence objects/structs (::CESTSequence) from event blocks (::SequenceBlock) and core event definitions (::CoreBlocks) - `addBlock!()`, `removeBlock!()`, `insertBlock!()`, `replaceBlock!()`. Sequences can be constructed similarly (albeit not identically) to Pulseq.
 * Simulate Z-spectra from ::CESTModel, ::CESTSys, ::CESTSequence, and ::CESTSimParams - `solve_BME!()`, `simulate_CEST()` 
+* Simulate and visualise Magnetisation trajectories - `plot_CESTtraj()`
 
 More information can be found by looking at each individual function's documentation (e.g., `?addBlock!`).
 
+### Pulse design
+
+Pulse shape constructors are provided for: Rect, gaussian, hamming, hanning, fermi, sinc, HS, HSn, HSExp, Tanh/Tan, SLAC-HS (wip), BIR (wip). At the moment, gradient-modified pulses are not supported.
+
+To use, call the module `pulses`, e.g.,
+
+```RF = pulses.gaussian(...)```
+
 ### Simple workflow
 
-Please see `examples/simple_CW.jl` for a sample workflow. 
+Please see `examples/simple_CW.jl` or `examples/simple_pulsed.jl` for a sample workflow. 
 
 ‼️Important: In order for a Z-spectrum to be returned from `simulate_CEST()`, the ::CESTSequence argument must contain at least one ::SequenceBlock of EventType = :ADC
 
@@ -41,9 +53,9 @@ https://github.com/JuliaHealth/KomaMRI.jl
 
 ### Immediate next steps
 
-* Pulse constructors
+* Pulse constructors [DONE]
 * Upload more examples + results
-* More intuitive integration with KomaMRI
+* Dynamic choice for different Makie backends for plots
 
 [![Build Status](https://github.com/maraquach/CESTNumSim.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/maraquach/CESTNumSim.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/maraquach/CESTNumSim.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/maraquach/CESTNumSim.jl)

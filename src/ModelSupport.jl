@@ -122,6 +122,21 @@ function create_model(template::String)
             nSpecies     = 2,
             maxRFsamples = 200
         ) 
+    elseif template == "Water7T"
+        model = CESTModel(
+            path = "Inline",
+            t1ⁿ         = [1.8 ],
+            t2ⁿ          = [55e-3],
+            r1ⁿ          = 1.0 ./ [1.8  ],
+            r2ⁿ          = 1.0 ./ [55e-3],
+            fⁿ           = [1.0],
+            Cⁿ           = [0.0],
+            wⁿppm        = [0],
+            δω           = 0.0,
+            names        = ["water"],
+            nSpecies     = 1,
+            maxRFsamples = 200
+        )
     else
         throw(ArgumentError("Template name not recognised. Try again with either `2PoolsGlu7T`, `2PoolsAmide7T`, or pass arguments to create your own model struct"))
     end
@@ -135,7 +150,7 @@ end
                         f::Array{Float64,1}, 
                         k::Array{Float64,1}, 
                         dw::Array{Float64,1},
-                        B0::Float64, 
+                        B0inhomo::Float64, 
                         maxRFsamples::Int64=200)
 
     Explicitly create a ::CESTModel struct from input arguments. 

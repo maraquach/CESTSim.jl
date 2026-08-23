@@ -51,9 +51,9 @@ end
 simParams = CESTSimParams(Δω = w, sys=sys, model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())",reltol=1e-5,abstol=1e-5)
 
 # If resetting M0 after each offset
-@time r = simulate_CEST(seq, simParams,true)
+# @time r = simulate_CEST(seq, simParams,true)
 # otherwise
-# r = simulate_CEST(seq, simParams,false) 
+r = simulate_CEST(seq, simParams,false) 
 
 fZ = CESTSim.plot_CESTresult(r.Z, simParams)
 fZ[1]
