@@ -9,9 +9,6 @@ To install and use, type in your Julia REPL
 ```
 using Pkg
 Pkg.add(url="https://github.com/maraquach/CESTSim.jl.git")
-```
-<!-- ]add https://github.com/maraquach/CESTSim.jl.git -->
-
 using CESTSim
 ```
 
