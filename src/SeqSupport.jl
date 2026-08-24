@@ -1,7 +1,7 @@
 
 include("Aux.jl")
 import Plots
-import Makie
+import WGLWGLMakie
 
 # TODO: Make sure that the documentation for structs work?
 """
@@ -251,10 +251,10 @@ end
 
 function plot_CESTseq(seq::CESTSequence)
 
-    f = Makie.Figure(size=(750,500))
-    axL = Makie.Axis(f[1,1], yaxisposition=:left, limits=(nothing, nothing, 0.0, nothing), ylabel="|B₁| [μT]", xlabel="Time [s]", leftspinecolor=:red, ylabelcolor=:red, yticklabelcolor=:red, ytickcolor=:red, title=seq.Name)
-    axR = Makie.Axis(f[1,1], yaxisposition=:right, limits=(nothing, nothing, -π, π), ylabel="ϕ [rad]", rightspinecolor=:orange, ylabelcolor=:orange, yticklabelcolor=:orange, ytickcolor=:orange, leftspinecolor=:red)
-    Makie.linkxaxes!(axL, axR)
+    f = WGLMakie.Figure(size=(750,500))
+    axL = WGLMakie.Axis(f[1,1], yaxisposition=:left, limits=(nothing, nothing, 0.0, nothing), ylabel="|B₁| [μT]", xlabel="Time [s]", leftspinecolor=:red, ylabelcolor=:red, yticklabelcolor=:red, ytickcolor=:red, title=seq.Name)
+    axR = WGLMakie.Axis(f[1,1], yaxisposition=:right, limits=(nothing, nothing, -π, π), ylabel="ϕ [rad]", rightspinecolor=:orange, ylabelcolor=:orange, yticklabelcolor=:orange, ytickcolor=:orange, leftspinecolor=:red)
+    WGLMakie.linkxaxes!(axL, axR)
 
     for n = eachindex(seq.Events)
         if seq.Events[n].EventType === :RF
@@ -262,14 +262,14 @@ function plot_CESTseq(seq::CESTSequence)
             if isa(mag, ComplexF64)
                 mag = mag .+ zeros(length(seq.Events[n].T))
             end
-            Makie.lines!(axL, seq.Events[n].T, abs.(mag), label="",color=:red)
-            Makie.lines!(axR, seq.Events[n].T, angle.(mag),label="", color=:orange, linestyle=:dash)
+            WGLMakie.lines!(axL, seq.Events[n].T, abs.(mag), label="",color=:red)
+            WGLMakie.lines!(axR, seq.Events[n].T, angle.(mag),label="", color=:orange, linestyle=:dash)
         elseif seq.Events[n].EventType === :Delay
-            Makie.lines!(axL, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", color=:red)
+            WGLMakie.lines!(axL, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", color=:red)
         elseif seq.Events[n].EventType === :Spoiling
-            Makie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:dot, color=:blue)
+            WGLMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:dot, color=:blue)
         elseif seq.Events[n].EventType === :ADC
-            Makie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:solid, color=:green)
+            WGLMakie.lines!(axR, seq.Events[n].T, zeros(size(seq.Events[n].T)), label="", linestyle=:solid, color=:green)
         end
     end
 
@@ -291,7 +291,7 @@ end
 ## Some default blocks
 blockADC = SequenceBlock(T=0.0:1e-6:2e-6, EventType=:ADC, EventName="Default readout, 2 μs")
 blockdummyRF = SequenceBlock(RF=1 + 0.0im, T=0.0:1e-6:1e-3, EventType=:RF, EventName="Dummy RF, 1 ms")
-dummySeq = CESTSequence()
+dummySeq = CESTSequence(System=defaultSystem(false))
 addBlock!(dummySeq, blockdummyRF)
 addBlock!(dummySeq, blockADC)
 
@@ -454,9 +454,9 @@ end
 
 function plot_CESTtraj(RF::SequenceBlock, ADC::SequenceBlock, Δω::Float64, sys::CESTSys, model::CESTModel; species::Int=1)
     # If no adiabatic
-    Makie.set_theme!()
-    f = Makie.Figure(size=(1500,1000));
-    ax = [Makie.Axis(f[1,n]) for n = 1:3]
+    WGLMakie.set_theme!()
+    f = WGLMakie.Figure(size=(1500,1000));
+    ax = [WGLMakie.Axis(f[1,n]) for n = 1:3]
     clrs = [:firebrick, :blue]
     ws = [-Δω Δω] .* sys.B₀MHz
     rs = [0.0 0.0]
@@ -467,13 +467,13 @@ function plot_CESTtraj(RF::SequenceBlock, ADC::SequenceBlock, Δω::Float64, sys
     else
         pRF = RF.RF
     end
-    Makie.lines!(ax[1], RF.T, pRF .|> abs)
-    Makie.lines!(ax[2], RF.T, pRF .|> angle)
+    WGLMakie.lines!(ax[1], RF.T, pRF .|> abs)
+    WGLMakie.lines!(ax[2], RF.T, pRF .|> angle)
     ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
     ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
     RF2 = deepcopy(RF)
-    axs = [Makie.Axis(f[2,n], aspect=1) for n = 1:3]
-    ax3 = Makie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=(-1,1,-1,1,-1,1), azimuth=1.6π)
+    axs = [WGLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = WGLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=(-1,1,-1,1,-1,1), azimuth=1.6π)
     for nw = eachindex(ws)
         Dw     = ws[nw]
         RF2.Δω = Dw
@@ -483,32 +483,32 @@ function plot_CESTtraj(RF::SequenceBlock, ADC::SequenceBlock, Δω::Float64, sys
         simp = CESTSimParams(Δω = [Δω], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
         r = simulate_CEST(seq, simp, true, true; species=species)
         Mx = r.Mx; My = r.My; Mz = r.Mz
-        Makie.lines!(ax[3], r.t, Mx, label="Mx")
-        Makie.lines!(ax[3], r.t, My, label="My")
-        Makie.lines!(ax[3], r.t, Mz, label="Mz")
+        WGLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+        WGLMakie.lines!(ax[3], r.t, My, label="My")
+        WGLMakie.lines!(ax[3], r.t, Mz, label="Mz")
         ax[3].limits=(nothing,nothing, 0.0,1)
 
 
-        Makie.lines!(axs[1], Mx, My, color=clrs[nw]); Makie.arc!(axs[1], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
-        Makie.lines!(axs[2], Mx, Mz, color=clrs[nw]); Makie.arc!(axs[2], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
-        Makie.lines!(axs[3], My, Mz, color=clrs[nw]); Makie.arc!(axs[3], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
+        WGLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); WGLMakie.arc!(axs[1], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+        WGLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); WGLMakie.arc!(axs[2], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+        WGLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); WGLMakie.arc!(axs[3], 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
 
-        Makie.arc!(ax3, 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, zeros(63), sin.(-π:.1:π), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, sin.(-π:.1:π), zeros(63), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, [0 0], [0 0], [-1.2 1.2], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, [0 0], [-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, [-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
-        Makie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
-        Makie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
+        WGLMakie.arc!(ax3, 0.0, 1, -π, π, linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, zeros(63), sin.(-π:.1:π), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, sin.(-π:.1:π), zeros(63), cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, [0 0], [0 0], [-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, [0 0], [-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, [-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+        WGLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+        WGLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
 
         println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
-        # Makie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
+        # WGLMakie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
         rs[nw] = Mz[end]
     end
-    Makie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
-    # Makie.Label(f[4,:]; text=, fontsize=15)
+    WGLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
+    # WGLMakie.Label(f[4,:]; text=, fontsize=15)
     println(((rs[1] - rs[2])/rs[1])*100)
     return f
 end
@@ -517,9 +517,9 @@ function plot_CESTtraj(seq::CESTSequence, Δω::Float64, sys::CESTSys, model::CE
 
     scale = model.fⁿ[species]
     # If no adiabatic
-    Makie.set_theme!()
-    f = Makie.Figure(size=(1500,1000));
-    ax = [Makie.Axis(f[1,n]) for n = 1:3]
+    WGLMakie.set_theme!()
+    f = WGLMakie.Figure(size=(1500,1000));
+    ax = [WGLMakie.Axis(f[1,n]) for n = 1:3]
     clrs = [:firebrick, :blue]
     if both
         ws = [-Δω Δω] .* sys.B₀MHz
@@ -536,16 +536,16 @@ function plot_CESTtraj(seq::CESTSequence, Δω::Float64, sys::CESTSys, model::CE
             else
                 RF = seq.Events[n].RF
             end
-            Makie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
-            Makie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
+            WGLMakie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
+            WGLMakie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
         end
     end
     ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
     ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
     # RF2 = deepcopy(RF)
     seq2 = deepcopy(seq)
-    axs = [Makie.Axis(f[2,n], aspect=1) for n = 1:3]
-    ax3 = Makie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
+    axs = [WGLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = WGLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
     for nw = eachindex(ws)
         Dw = ws[nw]
         for n = eachindex(seq.Events)
@@ -554,39 +554,39 @@ function plot_CESTtraj(seq::CESTSequence, Δω::Float64, sys::CESTSys, model::CE
         simp = CESTSimParams(Δω = [Δω], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
         r = simulate_CEST(seq2, simp, true, true; species=species)
         Mx = r.Mx; My = r.My; Mz = r.Mz
-        Makie.lines!(ax[3], r.t, Mx, label="Mx")
-        Makie.lines!(ax[3], r.t, My, label="My")
-        Makie.lines!(ax[3], r.t, Mz, label="Mz")
+        WGLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+        WGLMakie.lines!(ax[3], r.t, My, label="My")
+        WGLMakie.lines!(ax[3], r.t, Mz, label="Mz")
         ax[3].limits=(nothing,nothing, 0.0,scale*1)
 
 
-        Makie.lines!(axs[1], Mx, My, color=clrs[nw]); Makie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
-        Makie.lines!(axs[2], Mx, Mz, color=clrs[nw]); Makie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
-        Makie.lines!(axs[3], My, Mz, color=clrs[nw]); Makie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
+        WGLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); WGLMakie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+        WGLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); WGLMakie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+        WGLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); WGLMakie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
 
 
-        Makie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-        Makie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
-        Makie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
-        Makie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
-        Makie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
+        WGLMakie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+        WGLMakie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+        WGLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+        WGLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+        WGLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
 
         println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
-        # Makie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
+        # WGLMakie.Label(f[4+nw,:]; text=string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]), fontsize=15, color=clrs[nw])
         rs[nw] = Mz[end]
         println(string("θ = ", atan(Mx[end]/Mz[end])))
     end
     if both
-        Makie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
+        WGLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm, MTRAsym = " * string(round(((rs[1] - rs[2])/rs[1])*100; sigdigits=4)) * " %", fontsize=20)
         println(((rs[1] - rs[2])/rs[1])*100)
     else
-        Makie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm", fontsize=20)
+        WGLMakie.Label(f[0,:]; text="Δω = ±"*string(Δω) * " ppm", fontsize=20)
     end
-        # Makie.Label(f[4,:]; text=, fontsize=15)
+        # WGLMakie.Label(f[4,:]; text=, fontsize=15)
     return f
 end
 
@@ -594,9 +594,9 @@ function plot_CESTtraj(seq::CESTSequence, sys::CESTSys, model::CESTModel; specie
 
     scale = model.fⁿ[species]
     # If no adiabatic
-    Makie.set_theme!()
-    f = Makie.Figure(size=(1500,1000));
-    ax = [Makie.Axis(f[1,n]) for n = 1:3]
+    WGLMakie.set_theme!()
+    f = WGLMakie.Figure(size=(1500,1000));
+    ax = [WGLMakie.Axis(f[1,n]) for n = 1:3]
     clrs = [:firebrick, :blue]
     
     for n = eachindex(seq.Events)
@@ -606,41 +606,41 @@ function plot_CESTtraj(seq::CESTSequence, sys::CESTSys, model::CESTModel; specie
             else
                 RF = seq.Events[n].RF
             end
-            Makie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
-            Makie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
+            WGLMakie.lines!(ax[1], seq.Events[n].T, RF .|> abs)
+            WGLMakie.lines!(ax[2], seq.Events[n].T, RF .|> angle)
         end
     end
     ax[1].xlabel="Time [s]"; ax[1].ylabel="B₁ [μT]"; ax[1].title = "|RF|"
     ax[2].xlabel="Time [s]"; ax[2].ylabel="ϕ [rad]"; ax[2].title = "∠RF"
     # RF2 = deepcopy(RF)
     seq2 = deepcopy(seq)
-    axs = [Makie.Axis(f[2,n], aspect=1) for n = 1:3]
-    ax3 = Makie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
+    axs = [WGLMakie.Axis(f[2,n], aspect=1) for n = 1:3]
+    ax3 = WGLMakie.Axis3(f[:,4:5], title="Trajectory", aspect=:equal, limits=scale.*(-1,1,-1,1,-1,1), azimuth=1.6π)
     nw = 1
 
     simp = CESTSimParams(Δω = [0.0], model = model, solver="Rodas5P(autodiff=AutoFiniteDiff())", sys=sys, reltol=1e-6, abstol=1e-6)
     r = simulate_CEST(seq2, simp, true, true; species=species)
     Mx = r.Mx; My = r.My; Mz = r.Mz
-    Makie.lines!(ax[3], r.t, Mx, label="Mx")
-    Makie.lines!(ax[3], r.t, My, label="My")
-    Makie.lines!(ax[3], r.t, Mz, label="Mz")
+    WGLMakie.lines!(ax[3], r.t, Mx, label="Mx")
+    WGLMakie.lines!(ax[3], r.t, My, label="My")
+    WGLMakie.lines!(ax[3], r.t, Mz, label="Mz")
     ax[3].limits=(nothing,nothing, 0.0,scale*1)
 
 
-    Makie.lines!(axs[1], Mx, My, color=clrs[nw]); Makie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
-    Makie.lines!(axs[2], Mx, Mz, color=clrs[nw]); Makie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
-    Makie.lines!(axs[3], My, Mz, color=clrs[nw]); Makie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
+    WGLMakie.lines!(axs[1], Mx, My, color=clrs[nw]); WGLMakie.arc!(axs[1], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[1].xlabel="X"; axs[1].ylabel="Y"
+    WGLMakie.lines!(axs[2], Mx, Mz, color=clrs[nw]); WGLMakie.arc!(axs[2], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[2].xlabel="X"; axs[2].ylabel="Z"
+    WGLMakie.lines!(axs[3], My, Mz, color=clrs[nw]); WGLMakie.arc!(axs[3], 0.0, scale*1, -scale*π, scale*π, linestyle=:dash, color=:black, alpha=.5); axs[3].xlabel="Y"; axs[3].ylabel="Z"
 
 
-    Makie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
-    Makie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-    Makie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
-    Makie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
-    Makie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
-    Makie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
-    Makie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
-    Makie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
-    Makie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
+    WGLMakie.arc!(ax3, 0.0, 1*scale, -π, π, linestyle=:dash, color=:black, alpha=.5)
+    WGLMakie.lines!(ax3, zeros(63), scale.*sin.(-π:.1:π), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+    WGLMakie.lines!(ax3, scale.*sin.(-π:.1:π), zeros(63), scale.*cos.(-π:.1:π), linestyle=:dash, color=:black, alpha=.5)
+    WGLMakie.lines!(ax3, [0 0], [0 0], scale.*[-1.2 1.2], color=:black, alpha=.6, linecap=:square)
+    WGLMakie.lines!(ax3, [0 0], scale.*[-1.2 1.2], [0 0], color=:black, alpha=.6, linecap=:square)
+    WGLMakie.lines!(ax3, scale.*[-1.2 1.2], [0 0], [0 0], color=:black, alpha=.6, linecap=:square)
+    WGLMakie.lines!(ax3, Mx, My, Mz,color=clrs[nw])
+    WGLMakie.arrows3d!(ax3, [0.0], [0.0], [0.0], [Mx[end]], [My[end]], [Mz[end]], shaftradius=0.01, tipradius=0.04, tiplength=0.1, color=clrs[nw])
+    WGLMakie.text!(ax3, Mx[end], My[end], Mz[end]; text="  (" * string(round(Mx[end];sigdigits=2)) * "," * string(round(My[end];sigdigits=2)) * "," * string(round(Mz[end];sigdigits=2)) * ")")
 
     println(string("Mx = ", Mx[end], " My = ", My[end]," Mz = ", Mz[end]))
 

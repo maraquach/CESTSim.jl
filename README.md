@@ -1,8 +1,11 @@
-# CESTSim
+# CESTSim - headless version
 
 Small Julia package for CEST/Bloch-McConnell simulations.
 
 The package is in development and therefore not (yet) registered.
+
+> [!NOTE] 
+> This branch is for users running on a headless system (e.g., remote access via terminal). If you are running on VS Code, just simply forward the `9384` port in the "Ports" tab. (Interative) plots will then appear on the VS Code plotpane. For more information please consult: https://docs.makie.org/dev/explanations/headless 
 
 To install and use, type in your Julia REPL
 
