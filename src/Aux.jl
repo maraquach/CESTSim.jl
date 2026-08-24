@@ -70,11 +70,11 @@ end
 
 ## Pretty things -- GUI in the making
 import ColorSchemes
-import GLMakie
+import Makie
 
 const CESTSimColours = get(ColorSchemes.rainbow, range(0.0,1.0, length=10)) |> ColorSchemes.ColorScheme
 
-CESTSimTheme = GLMakie.Theme(
+CESTSimTheme = Makie.Theme(
     backgroundcolor = :black,
     size=(700,700),
     textcolor = :white,
@@ -144,26 +144,26 @@ CESTSimTheme = GLMakie.Theme(
 
 
 function plot_CESTresult(r, params::CESTSimParams, hasref::Bool=true)
-    f = GLMakie.Figure(size=(800,400))
-    axZ = GLMakie.Axis(f[1,1], title="Z-spectrum", ylabel="Z(Δω)/Z(M0) [a.u]", xlabel="Δω [Hz]")
+    f = Makie.Figure(size=(800,400))
+    axZ = Makie.Axis(f[1,1], title="Z-spectrum", ylabel="Z(Δω)/Z(M0) [a.u]", xlabel="Δω [Hz]")
     if hasref
-        GLMakie.lines!(axZ, params.Δω[2:end], r[2:end]./r[1])
+        Makie.lines!(axZ, params.Δω[2:end], r[2:end]./r[1])
     else
-        GLMakie.lines!(axZ, params.Δω, r)
+        Makie.lines!(axZ, params.Δω, r)
     end
     
-    axM = GLMakie.Axis(f[1,2], title="MTRAsym", ylabel="MTRAsym [%]", xlabel="Δω [Hz]")
+    axM = Makie.Axis(f[1,2], title="MTRAsym", ylabel="MTRAsym [%]", xlabel="Δω [Hz]")
     
     
     if hasref
         r = r[2:end]./r[1]
         w = params.Δω[2:end]
         w0idx = findfirst(w .== 0.0)
-        GLMakie.lines!(axM, w[w0idx+1:end], 100 .*(reverse(r[1:w0idx-1]) .- r[w0idx+1:end]) ./ reverse(r[1:w0idx-1]))
+        Makie.lines!(axM, w[w0idx+1:end], 100 .*(reverse(r[1:w0idx-1]) .- r[w0idx+1:end]) ./ reverse(r[1:w0idx-1]))
     else
         w = params.Δω
         w0idx = findfirst(w .== 0.0)
-        GLMakie.lines!(axM, w[w0idx+1:end], 100 .*(reverse(r[1:w0idx-1]) .- r[w0idx+1:end]) ./ reverse(r[1:w0idx-1]))
+        Makie.lines!(axM, w[w0idx+1:end], 100 .*(reverse(r[1:w0idx-1]) .- r[w0idx+1:end]) ./ reverse(r[1:w0idx-1]))
     end
     return f, axZ, axM
 
