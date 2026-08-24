@@ -1,7 +1,7 @@
 
 include("Aux.jl")
 import Plots
-import WGLWGLMakie
+import WGLMakie
 
 # TODO: Make sure that the documentation for structs work?
 """
