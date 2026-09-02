@@ -6,3 +6,4 @@ examples/12August.code-workspace
 src/PlotSupport.jl
 README.md
 .DS_Store
+src/radish.code-workspace
