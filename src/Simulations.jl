@@ -9,9 +9,9 @@
 function simulate_CEST(seq::CESTSequence, params::CESTSimParams, resetM0::Bool=false; species::Int=1)
     @assert sum(getfield.(seq.Events, :EventType) .== :ADC) > 0 "💥 No ADC event found in CESTSequence. Aborting."
     # @assert params.model.wⁿppm .* sys.B₀MHz == params.model.wⁿHz "💥 CESTSys and CESTModel not consistent. Check CESTSys.B₀MHz or γ"
-    Zspec  = copy(params.Δω)
-    XYspec = copy(params.Δω)
-    θ      = copy(params.Δω)
+    Zspec  = similar(params.Δω)
+    XYspec = similar(params.Δω)
+    θ      = similar(params.Δω)
     M0_0   = create_M0(params.model)
     p0     = create_params(params.model, params.sys, 0.0)
     nadc   = 0
@@ -22,35 +22,35 @@ function simulate_CEST(seq::CESTSequence, params::CESTSimParams, resetM0::Bool=f
         elseif n == 2
             M0 = M0_0
         end
-        event = deepcopy(seq.Events[n])
-        if event.EventType === :RF      
-            p1 = create_params(params.model, params.sys, event.Δω)
-            if isa(event.RF, ComplexF64)
-                p = create_params(p1, event, :CW) # This will produce p::CESTParamsCW
-            elseif isa(event.RF, Array{ComplexF64,1})
-                p = create_params(p1, event, :Pulsed; order=params.interp) # This will produce p::CESTParamsPulsed
+        # event = deepcopy(seq.Events[n])
+        if seq.Events[n].EventType === :RF      
+            p1 = create_params(params.model, params.sys, seq.Events[n].Δω)
+            if isa(seq.Events[n].RF, ComplexF64)
+                p = create_params(p1, seq.Events[n], :CW) # This will produce p::CESTParamsCW
+            elseif isa(seq.Events[n].RF, Array{ComplexF64,1})
+                p = create_params(p1, seq.Events[n], :Pulsed; order=params.interp) # This will produce p::CESTParamsPulsed
             else
                 println("uhOh")
             end
             # println(typeof(p))
-            prob = ODEProblem(solve_BME!, M0, (event.T[1], event.T[end]), p) 
+            prob = ODEProblem(solve_BME!, M0, (seq.Events[n].T[1], seq.Events[n].T[end]), p) 
             sol = solve(prob, eval(Meta.parse(params.solver)), reltol=params.reltol, abstol=params.abstol, dense=false, save_everystep=false)
             M0 = sol.u[end];
-        elseif event.EventType === :Delay || event.EventType === :ADC || event.EventType === :Spoiling
-            p = create_params(p0, event, :Relax) # This will produce p::CESTParamsFP
-            prob = ODEProblem(solve_BME!, M0, (event.T[1], event.T[end]), p)
+        elseif seq.Events[n].EventType === :Delay || seq.Events[n].EventType === :ADC || seq.Events[n].EventType === :Spoiling
+            p = create_params(p0, seq.Events[n], :Relax) # This will produce p::CESTParamsFP
+            prob = ODEProblem(solve_BME!, M0, (seq.Events[n].T[1], seq.Events[n].T[end]), p)
             sol = solve(prob, eval(Meta.parse(params.solver)), reltol=1e-6, abstol=1e-6, dense=false, save_everystep=false)
             M0 = sol.u[end];
-            if event.EventType === :Spoiling
+            if seq.Events[n].EventType === :Spoiling
                 M0[params.model.nSpecies * 0 + species] = 0.0 
                 M0[params.model.nSpecies * 1 + species] = 0.0 
-            elseif event.EventType === :ADC && resetM0
+            elseif seq.Events[n].EventType === :ADC && resetM0
                 M0 = M0_0
             end
         else # if :Ignore
             continue
         end
-        if event.EventType === :ADC
+        if seq.Events[n].EventType === :ADC
             nadc += 1 
             Zspec[nadc]  = getindex.(sol.u, params.model.nSpecies * 2 + species)[end]
             Mx           = getindex.(sol.u, species)[end]
@@ -72,7 +72,7 @@ function simulate_CEST(seq::CESTSequence, params::CESTSimParams, detailed::Bool,
     My = [];
     ts = [];
 
-    Zspec = copy(params.Δω)
+    Zspec = similar(params.Δω)
     M0_0  = create_M0(params.model)
     p0    = create_params(params.model, params.sys, 0.0)
     nadc  = 0
@@ -85,32 +85,32 @@ function simulate_CEST(seq::CESTSequence, params::CESTSimParams, detailed::Bool,
             M0 = M0_0
         end
 
-        event = deepcopy(seq.Events[n])
-        if event.EventType === :RF      
-            p1 = create_params(params.model, params.sys, event.Δω)
-            if isa(event.RF, ComplexF64)
-                p = create_params(p1, event, :CW) # This will produce p::CESTParamsCW
-            elseif isa(event.RF, Array{ComplexF64,1})
-                p = create_params(p1, event, :Pulsed) # This will produce p::CESTParamsPulsed
+        # event = deepcopy(seq.Events[n])
+        if seq.Events[n].EventType === :RF      
+            p1 = create_params(params.model, params.sys, seq.Events[n].Δω)
+            if isa(seq.Events[n].RF, ComplexF64)
+                p = create_params(p1, seq.Events[n], :CW) # This will produce p::CESTParamsCW
+            elseif isa(seq.Events[n].RF, Array{ComplexF64,1})
+                p = create_params(p1, seq.Events[n], :Pulsed) # This will produce p::CESTParamsPulsed
             else
                 println("uhOh")
             end
-            prob = ODEProblem(solve_BME!, M0, (event.T[1], event.T[end]), p)
+            prob = ODEProblem(solve_BME!, M0, (seq.Events[n].T[1], seq.Events[n].T[end]), p)
             sol  = solve(prob, eval(Meta.parse(params.solver)), reltol=params.reltol, abstol=params.abstol)
             M0   = sol.u[end];
             append!(Mz, getindex.(sol.u, params.model.nSpecies * 2 + species))
             append!(Mx, getindex.(sol.u, params.model.nSpecies * 0 + species))
             append!(My, getindex.(sol.u, params.model.nSpecies * 1 + species))
             append!(ts, sol.t)
-        elseif event.EventType === :Delay || event.EventType === :ADC || event.EventType === :Spoiling
-            p = create_params(p0, event, :Relax) # This will produce p::CESTParamsFP
-            prob = ODEProblem(solve_BME!, M0, (event.T[1], event.T[end]), p)
+        elseif seq.Events[n].EventType === :Delay || seq.Events[n].EventType === :ADC || seq.Events[n].EventType === :Spoiling
+            p = create_params(p0, seq.Events[n], :Relax) # This will produce p::CESTParamsFP
+            prob = ODEProblem(solve_BME!, M0, (seq.Events[n].T[1], seq.Events[n].T[end]), p)
             sol = solve(prob, eval(Meta.parse(params.solver)), reltol=1e-6, abstol=1e-6)
             M0 = sol.u[end];
-            if event.EventType === :Spoiling
+            if seq.Events[n].EventType === :Spoiling
                 M0[params.model.nSpecies * 0 + 1] = 0.0 
                 M0[params.model.nSpecies * 1 + 1] = 0.0 
-            elseif event.EventType === :ADC && resetM0
+            elseif seq.Events[n].EventType === :ADC && resetM0
                 M0 = M0_0
             end
             append!(Mz, getindex.(sol.u, params.model.nSpecies * 2 + species))
@@ -121,7 +121,7 @@ function simulate_CEST(seq::CESTSequence, params::CESTSimParams, detailed::Bool,
         else # if :Ignore
             continue
         end
-        if event.EventType === :ADC
+        if seq.Events[n].EventType === :ADC
             nadc += 1 # append!(dw, Δω)
             # println(nadc)
             Zspec[nadc] = getindex.(sol.u, params.model.nSpecies * 2 + 1)[end]
