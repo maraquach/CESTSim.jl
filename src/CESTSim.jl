@@ -10,6 +10,7 @@ using LoopVectorization
 using FastInterpolations
 using YAML
 using DSP
+using WGLMakie
 
 const γ = 42.577478461e6
 const γ̄ = 42.577478461e6 * 2π
